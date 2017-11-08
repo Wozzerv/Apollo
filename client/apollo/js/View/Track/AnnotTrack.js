@@ -3868,6 +3868,101 @@ define([
                 this.openDialog("GFF3", content);
             },
 
+            getHGVSForSelectedFeature: function (records) {
+                var track = this;
+                console.log("Entered GetHGVSSelectedFeatures");
+                var content = dojo.create("div", {className: "features_by_name"});
+                var textArea = dojo.create("textarea", {className: "sequence_area", readonly: true}, content);
+                var form = dojo.create("form", {}, content);
+                var hgvsButtonDiv = dojo.create("div", {className: "first_button_div"}, form);
+                var hgvsButton = dojo.create("input", {
+                    type: "radio",
+                    name: "type",
+                    checked: true
+                }, hgvsButtonDiv);
+                var hgvsButtonLabel = dojo.create("label", {
+                    innerHTML: "HGVS Numbering",
+                    className: "button_label"
+                }, hgvsButtonDiv);
+
+                var fetchHGVS = function () {
+                    var features = '"features": [';
+                    for (var i = 0; i < records.length; ++i) {
+                        var record = records[i];
+                        var annot = record.feature;
+                        var seltrack = record.track;
+                        var uniqueName = annot.getUniqueName();
+                        // just checking to ensure that all features in selection are
+                        // from this track
+                        if (seltrack === track) {
+                            var trackdiv = track.div;
+                            var trackName = track.getUniqueTrackName();
+
+                            if (i > 0) {
+                                features += ',';
+                            }
+                            features += ' { "uniquename": "' + uniqueName + '" } ';
+                        }
+                    }
+                    features += ']';
+                    var operation = "featuresByName";
+                    var trackName = track.getUniqueTrackName();
+                    var postData = '{ "track": "' + trackName + '", ' + features + ', "operation": "' + operation + '"}';
+                    var flank = 0;
+                    console.log(postData);
+                    dojo.xhrGet({
+                        postData: postData,
+                        url: context_path + "/AnnotationEditorService",
+                        handleAs: "json",
+                        timeout: 5000 * 1000, // Time in milliseconds
+                        load: function (response, ioArgs) {
+                            console.log(response);
+                            var textAreaContent = "";
+                            for (var i = 0; i < response.features.length; ++i) {
+                                var feature = response.features[i];
+                                var cvterm = feature.type;
+                                var residues = feature.residues;
+                                var loc = feature.location;
+                                textAreaContent += "&gt;" + feature.uniquename + " (" + cvterm.cv.name + ":" + cvterm.name + ") " + residues.length + " residues [" + track.refSeq.name + ":" + (loc.fmin + 1) + "-" + loc.fmax + " " + (loc.strand == -1 ? "-" : loc.strand == 1 ? "+" : "no") + " strand] [" + type + (flank > 0 ? " +/- " + flank + " bases" : "") + "]\n";
+                                var lineLength = 70;
+                                for (var j = 0; j < residues.length; j += lineLength) {
+                                    textAreaContent += residues.substr(j, lineLength) + "\n";
+                                }
+                            }
+                            dojo.attr(textArea, "innerHTML", textAreaContent);
+                        },
+                        // The ERROR function will be called in an error case.
+                        error: function (response, ioArgs) {
+                            track.handleError(response);
+                            console.log("Annotation server error--maybe you forgot to login to the server?");
+                            console.error("HTTP status code: ", ioArgs.xhr.status);
+                            //
+                            // dojo.byId("replace").innerHTML = 'Loading the
+                            // resource from the server did not work';
+                            return response;
+                        }
+
+                    });
+                };
+                var callback = function (event) {
+                    var type;
+                    var target = event.target || event.srcElement;
+                    fetchHGVS();
+                };
+                dojo.connect(hgvsButtonLabel, "onclick", null, callback);
+
+                fetchHGVS();
+                this.openDialog("Sequence", content);
+            },
+
+            getHGVS: function () {
+                var selected = this.selectionManager.getSelection();
+                console.log("ENtered GetHGVS");
+                this.getHGVSForSelectedFeature(selected);
+            },
+
+
+
             getSequence: function () {
                 var selected = this.selectionManager.getSelection();
                 this.getSequenceForSelectedFeatures(selected);
@@ -4515,6 +4610,22 @@ define([
                 annot_context_menu = new dijit.Menu({});
                 var permission = thisB.permission;
                 var index = 0;
+
+                annot_context_menu.addChild(new dijit.MenuItem({
+                    label: "Test",
+                    onClick: function (event) {
+                        alert("Hello!");
+                    }
+                }));
+                annot_context_menu.addChild(new dijit.MenuItem({
+                    label: "Get HGVS Numbering",
+                    onClick: function (event) {
+                        console.log("Click registered.");
+                        thisB.getHGVS();
+                    }
+                }));
+                contextMenuItems["get_hgvs"] = index++;
+
                 annot_context_menu.addChild(new dijit.MenuItem({
                     label: "Get Sequence",
                     onClick: function (event) {
