@@ -3917,7 +3917,9 @@ define([
                         timeout: 5000 * 1000, // Time in milliseconds
                         load: function (response, ioArgs) {
                             console.log(response);
-                            var textAreaContent = "";
+                                //currently unused as I wanted to see what the response looks like in the console before
+                                // assigning anything
+                           /* var textAreaContent = "";
                             for (var i = 0; i < response.features.length; ++i) {
                                 var feature = response.features[i];
                                 var cvterm = feature.type;
@@ -3929,6 +3931,7 @@ define([
                                     textAreaContent += residues.substr(j, lineLength) + "\n";
                                 }
                             }
+                            */
                             dojo.attr(textArea, "innerHTML", textAreaContent);
                         },
                         // The ERROR function will be called in an error case.
