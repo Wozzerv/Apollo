@@ -3920,7 +3920,7 @@ define([
                         // to 513-1 before continuing new exon 514..
                         // I will merge these two if else blocks into one as the second one is practically a 
                         // repeat except with two extra lines.
-                        if (lengthe % 2 != 0) {
+                        if (lengthe % 2 == 0) {
                              lengthe = lengthe /2;
                             for (var k = 1; k < lengthe+1; k++) {
                                 hgvs.push(curr_value +"+" + k);
