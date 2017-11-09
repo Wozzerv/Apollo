@@ -93,6 +93,7 @@ define([
 
         var listener;
         var client;
+        var log = console.log.bind(console);
 
         var annot_context_menu;
         var contextMenuItems;
@@ -3807,7 +3808,7 @@ define([
 
             getGff3: function () {
                 var selected = this.selectionManager.getSelection();
-                this.getGff3ForSelectedFeatures(selected);
+                this.this.getGff3ForSelectedFeatures(selected);
             },
 
             getGff3ForSelectedFeatures: function (records) {
@@ -3867,6 +3868,93 @@ define([
 
                 this.openDialog("GFF3", content);
             },
+
+            getHGVSForSelectedFeature: function (records) {
+
+                var track = this;
+                var feature = records; 
+                var positions = [];
+                var hgvs = [];
+                var length_of_gap;
+                var curr_value = 0;
+                
+                // Pull out exon start and end coordinates
+                log(feature);
+                $.each(feature[0]['feature']['afeature']['children'], function(key,val) {
+                    positions.push([val['location']['fmin'], val['location']['fmax']]);
+                })
+                    
+                // sort them 
+                positions.sort(function(a,b) {
+                    return a[1]> b[1]?1:-1;
+                });
+                log(positions);
+                    
+                // Very unoptimised loop to build HGVS numbering for selected feature
+                // Terrible use of variable name of lengthe also.
+                // I just got something working today and will work to shorten this tomorrow
+                // HGVS numbering is also just pushed into an array for now also
+                    
+                // First loop initiates number of exons to loop through
+                for (var i = 0; i < positions.length; i++) {
+                    // determine number of bases in the exon
+                    lengthe = positions[i][1] - positions[i][0];
+                    // loop through exon incrementing HGVS number by one    
+                    for (var j = 0; j < lengthe; j++) {
+                        curr_value++;
+                        hgvs.push(curr_value);
+                         
+                    }
+                    log(positions.length);
+                    // control to make sure last loop doesnt try to count non- existent
+                    // bases to further exon
+                    if (i <positions.length - 1) {
+                        j = i + 1;
+                        // determine length between exons, ie the intron
+                        lengthe = positions[j][0] - positions[i][1];
+                        // is it an even length in intron? yes
+                        // since in HGVS numbering if there are an odd number of bases
+                        // one extra is added to the first half
+                        // so for example if last base of an exon was 512 and there were 1001 bases in intron
+                        // numbering will increment up from 512+1 to 512+501 and then decrement from 513-500
+                        // to 513-1 before continuing new exon 514..
+                        // I will merge these two if else blocks into one as the second one is practically a 
+                        // repeat except with two extra lines.
+                        if (lengthe % 2 == 0) {
+                             lengthe = lengthe /2;
+                            for (var k = 1; k < lengthe+1; k++) {
+                                hgvs.push(curr_value +"+" + k);
+                            }
+                            curr_value++;
+                            for (var l = lengthe; l > 0; l--) {
+                                 hgvs.push(curr_value +"-" + l);
+                            }
+                        }
+                        // its an odd number length of intron
+                         else {
+                            lengthe = lengthe/2;
+                            lengthe = lengthe + 0.5;
+                            for (var k = 1; k < lengthe+1; k++) {
+                                hgvs.push(curr_value + "+" + k);
+                            }
+                            lengthe--;
+                            curr_value++;
+                            for (var l = lengthe; l > 0; l--) {
+                                hgvs.push(curr_value + "-" + l);
+                            }
+                        }
+                    }
+                }
+                log(hgvs);
+            },   
+
+            getHGVS: function () {
+                var selected = this.selectionManager.getSelection();
+                console.log("ENtered GetHGVS");
+                this.getHGVSForSelectedFeature(selected);
+            },
+
+
 
             getSequence: function () {
                 var selected = this.selectionManager.getSelection();
@@ -4515,6 +4603,22 @@ define([
                 annot_context_menu = new dijit.Menu({});
                 var permission = thisB.permission;
                 var index = 0;
+
+                annot_context_menu.addChild(new dijit.MenuItem({
+                    label: "Test",
+                    onClick: function (event) {
+                        alert("Hello!");
+                    }
+                }));
+                annot_context_menu.addChild(new dijit.MenuItem({
+                    label: "Get HGVS Numbering",
+                    onClick: function (event) {
+                        console.log("Click registered.");
+                        thisB.getHGVS();
+                    }
+                }));
+                contextMenuItems["get_hgvs"] = index++;
+
                 annot_context_menu.addChild(new dijit.MenuItem({
                     label: "Get Sequence",
                     onClick: function (event) {
