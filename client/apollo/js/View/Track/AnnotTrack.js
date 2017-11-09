@@ -93,6 +93,7 @@ define([
 
         var listener;
         var client;
+        var log = console.log.bind(console);
 
         var annot_context_menu;
         var contextMenuItems;
@@ -3807,7 +3808,7 @@ define([
 
             getGff3: function () {
                 var selected = this.selectionManager.getSelection();
-                this.getGff3ForSelectedFeatures(selected);
+                this.this.getGff3ForSelectedFeatures(selected);
             },
 
             getGff3ForSelectedFeatures: function (records) {
@@ -3869,94 +3870,83 @@ define([
             },
 
             getHGVSForSelectedFeature: function (records) {
+
                 var track = this;
-                console.log("Entered GetHGVSSelectedFeatures");
-                var content = dojo.create("div", {className: "features_by_name"});
-                var textArea = dojo.create("textarea", {className: "sequence_area", readonly: true}, content);
-                var form = dojo.create("form", {}, content);
-                var hgvsButtonDiv = dojo.create("div", {className: "first_button_div"}, form);
-                var hgvsButton = dojo.create("input", {
-                    type: "radio",
-                    name: "type",
-                    checked: true
-                }, hgvsButtonDiv);
-                var hgvsButtonLabel = dojo.create("label", {
-                    innerHTML: "HGVS Numbering",
-                    className: "button_label"
-                }, hgvsButtonDiv);
-
-                var fetchHGVS = function () {
-                    var features = '"features": [';
-                    for (var i = 0; i < records.length; ++i) {
-                        var record = records[i];
-                        var annot = record.feature;
-                        var seltrack = record.track;
-                        var uniqueName = annot.getUniqueName();
-                        // just checking to ensure that all features in selection are
-                        // from this track
-                        if (seltrack === track) {
-                            var trackdiv = track.div;
-                            var trackName = track.getUniqueTrackName();
-
-                            if (i > 0) {
-                                features += ',';
+                var feature = records; 
+                var positions = [];
+                var hgvs = [];
+                var length_of_gap;
+                var curr_value = 0;
+                
+                // Pull out exon start and end coordinates
+                log(feature);
+                $.each(feature[0]['feature']['afeature']['children'], function(key,val) {
+                    positions.push([val['location']['fmin'], val['location']['fmax']]);
+                })
+                    
+                // sort them 
+                positions.sort(function(a,b) {
+                    return a[1]> b[1]?1:-1;
+                });
+                log(positions);
+                    
+                // Very unoptimised loop to build HGVS numbering for selected feature
+                // Terrible use of variable name of lengthe also.
+                // I just got something working today and will work to shorten this tomorrow
+                // HGVS numbering is also just pushed into an array for now also
+                    
+                // First loop initiates number of exons to loop through
+                for (var i = 0; i < positions.length; i++) {
+                    // determine number of bases in the exon
+                    lengthe = positions[i][1] - positions[i][0];
+                    // loop through exon incrementing HGVS number by one    
+                    for (var j = 0; j < lengthe; j++) {
+                        curr_value++;
+                        hgvs.push(curr_value);
+                         
+                    }
+                    log(positions.length);
+                    // control to make sure last loop doesnt try to count non- existent
+                    // bases to further exon
+                    if (i <positions.length - 1) {
+                        j = i + 1;
+                        // determine length between exons, ie the intron
+                        lengthe = positions[j][0] - positions[i][1];
+                        // is it an even length in intron? yes
+                        // since in HGVS numbering if there are an odd number of bases
+                        // one extra is added to the first half
+                        // so for example if last base of an exon was 512 and there were 1001 bases in intron
+                        // numbering will increment up from 512+1 to 512+501 and then decrement from 513-500
+                        // to 513-1 before continuing new exon 514..
+                        // I will merge these two if else blocks into one as the second one is practically a 
+                        // repeat except with two extra lines.
+                        if (lengthe % 2 != 0) {
+                             lengthe = lengthe /2;
+                            for (var k = 1; k < lengthe+1; k++) {
+                                hgvs.push(curr_value +"+" + k);
                             }
-                            features += ' { "uniquename": "' + uniqueName + '" } ';
+                            curr_value++;
+                            for (var l = lengthe; l > 0; l--) {
+                                 hgvs.push(curr_value +"-" + l);
+                            }
+                        }
+                        // its an odd number length of intron
+                         else {
+                            lengthe = lengthe/2;
+                            lengthe = lengthe + 0.5;
+                            for (var k = 1; k < lengthe+1; k++) {
+                                hgvs.push(curr_value + "+" + k);
+                            }
+                            lengthe--;
+                            curr_value++;
+                            for (var l = lengthe; l > 0; l--) {
+                                hgvs.push(curr_value + "-" + l);
+                            }
                         }
                     }
-                    features += ']';
-                    var operation = "featuresByName";
-                    var trackName = track.getUniqueTrackName();
-                    var postData = '{ "track": "' + trackName + '", ' + features + ', "operation": "' + operation + '"}';
-                    var flank = 0;
-                    console.log(postData);
-                    dojo.xhrGet({
-                        postData: postData,
-                        url: context_path + "/AnnotationEditorService",
-                        handleAs: "json",
-                        timeout: 5000 * 1000, // Time in milliseconds
-                        load: function (response, ioArgs) {
-                            console.log(response);
-                                //currently unused as I wanted to see what the response looks like in the console before
-                                // assigning anything
-                           /* var textAreaContent = "";
-                            for (var i = 0; i < response.features.length; ++i) {
-                                var feature = response.features[i];
-                                var cvterm = feature.type;
-                                var residues = feature.residues;
-                                var loc = feature.location;
-                                textAreaContent += "&gt;" + feature.uniquename + " (" + cvterm.cv.name + ":" + cvterm.name + ") " + residues.length + " residues [" + track.refSeq.name + ":" + (loc.fmin + 1) + "-" + loc.fmax + " " + (loc.strand == -1 ? "-" : loc.strand == 1 ? "+" : "no") + " strand] [" + type + (flank > 0 ? " +/- " + flank + " bases" : "") + "]\n";
-                                var lineLength = 70;
-                                for (var j = 0; j < residues.length; j += lineLength) {
-                                    textAreaContent += residues.substr(j, lineLength) + "\n";
-                                }
-                            }
-                            */
-                            dojo.attr(textArea, "innerHTML", textAreaContent);
-                        },
-                        // The ERROR function will be called in an error case.
-                        error: function (response, ioArgs) {
-                            track.handleError(response);
-                            console.log("Annotation server error--maybe you forgot to login to the server?");
-                            console.error("HTTP status code: ", ioArgs.xhr.status);
-                            //
-                            // dojo.byId("replace").innerHTML = 'Loading the
-                            // resource from the server did not work';
-                            return response;
-                        }
-
-                    });
-                };
-                var callback = function (event) {
-                    var type;
-                    var target = event.target || event.srcElement;
-                    fetchHGVS();
-                };
-                dojo.connect(hgvsButtonLabel, "onclick", null, callback);
-
-                fetchHGVS();
-                this.openDialog("Sequence", content);
-            },
+                }
+                log(hgvs);
+            },   
 
             getHGVS: function () {
                 var selected = this.selectionManager.getSelection();
